@@ -3,6 +3,7 @@ package main
 import (
 	"backup_categorizer/pkg"
 	"log/slog"
+	"strconv"
 	"time"
 )
 
@@ -38,4 +39,8 @@ func main() {
 		}
 	}
 	slog.Info("", "total runtime", time.Since(startTime))
+
+	if err := csvHandler.Log(time.Since(startTime).String(), "skipped file count", "total runtime", strconv.Itoa(len(s.Unprocessed))); err != nil {
+		slog.Error("Failed to log:", err)
+	}
 }
