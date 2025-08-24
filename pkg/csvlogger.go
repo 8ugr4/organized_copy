@@ -16,6 +16,9 @@ type CSVLogger struct {
 
 // NewCSVLogger creates or truncates a CSV file and writes the header row.
 func NewCSVLogger(path string) (*CSVLogger, error) {
+	if path == "" {
+		return nil, nil
+	}
 	f, err := os.Create(path)
 	if err != nil {
 		return nil, err

@@ -159,8 +159,11 @@ func (s Storage) Copy(dstPath, dstDir, fileAbsolutePath string, csvLogger *CSVLo
 	if err != nil {
 		return fmt.Errorf("failed to sync destination file:%s:%w", destinationFile.Name(), err)
 	}
-	if err := csvLogger.Log("SUCCESS", srcFile.Name(), fileName, destinationFile.Name()); err != nil {
-		slog.Error("Failed to log:", err)
+
+	if csvLogger != nil {
+		if err := csvLogger.Log("SUCCESS", srcFile.Name(), fileName, destinationFile.Name()); err != nil {
+			slog.Error("Failed to log:", err)
+		}
 	}
 	return nil
 }
