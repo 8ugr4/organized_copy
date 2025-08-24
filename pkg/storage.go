@@ -165,7 +165,7 @@ func (s Storage) Copy(dstPath, dstDir, fileAbsolutePath string, csvLogger *CSVLo
 	return nil
 }
 
-func (s Storage) ProcessDir(srcPath, dstPath string, csvHandler *CSVLogger) (int, int, error) {
+func (s Storage) ProcessDir(srcPath, dstPath string, csvHandler *CSVLogger, r bool) (int, int, error) {
 	entries, err := os.ReadDir(srcPath)
 	if err != nil {
 		return 0, 0, err
@@ -180,7 +180,7 @@ func (s Storage) ProcessDir(srcPath, dstPath string, csvHandler *CSVLogger) (int
 		fp := path.Join(srcPath, entry.Name())
 		if entry.IsDir() {
 			subDirCount++
-			if _, _, err := s.ProcessDir(fp, dstPath, csvHandler); err != nil {
+			if _, _, err := s.ProcessDir(fp, dstPath, csvHandler, true); err != nil {
 				return 0, 0, err
 			}
 			continue
@@ -209,7 +209,7 @@ func (s Storage) ProcessDir(srcPath, dstPath string, csvHandler *CSVLogger) (int
 		}
 		processed++
 		percentage := float64(processed) / float64(total) * 100
-		if processed%max(1, total/20) == 0 {
+		if processed%max(1, total/20) == 0 && r == false {
 			slog.Info("progress", "completed", fmt.Sprintf("%.1f%%", percentage))
 		}
 		extensions = append(extensions, ext)

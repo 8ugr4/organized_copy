@@ -25,7 +25,7 @@ func main() {
 		panic(err)
 	}
 
-	extensions, subDirCount, err := s.ProcessDir(srcPath, dstPath, csvHandler)
+	extensions, subDirCount, err := s.ProcessDir(srcPath, dstPath, csvHandler, false)
 	if err != nil {
 		panic(err)
 	}
