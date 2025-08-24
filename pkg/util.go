@@ -3,6 +3,8 @@ package pkg
 import (
 	"flag"
 	"fmt"
+	"log/slog"
+	"strings"
 )
 
 func RemoveDuplicateStr(strSlice []string) []string {
@@ -27,11 +29,15 @@ func Flags() (string, string, string) {
 
 	flag.Parse()
 
-	// Basic validation
-	if *srcPath == "" || *dstPath == "" {
-		fmt.Println("Error: both -src and -dst must be provided")
+	if *srcPath == "" {
+		fmt.Println("source path must be provided")
 		flag.Usage()
 		return "", "", ""
+	}
+
+	if *dstPath == "" {
+		*dstPath = strings.Join([]string{strings.TrimSuffix(*srcPath, "/"), "_cp"}, "")
+		slog.Warn("destination path is not set by user", "auto-set destination path as", *dstPath)
 	}
 
 	return *srcPath, *dstPath, *log
