@@ -1,18 +1,24 @@
-# organized_copy
-A go tool that copies a dir and organizes it in sub-dirs
+# organizer
+Lightweight CLI tool written in Go that copies files from a source directory to a destination directory while automatically organizing them into folders by type (audio, images, video, documents, other).
 
-## Usage
-```shell 
+### Example Usage
+```shell
   make build
-  ./oc --src="/path/to/your/source/dir" --dst="/path/to/your/destination/dir" --log="/path/to/your/logfile.csv"
-  ./cmpDirs.sh # sha256-validation (optional)
+  # Dry-run: show what will be copied
+  ./organizer --src ~/Downloads --dst ~/Sorted --dry-run
+
+  # Perform copy with log file including status of copy process of every single file and dir
+  ./organizer --src ~/Downloads --dst ~/Sorted --log=~/logfile.csv
+
+  # sha256-validation (optional)
+  ./cmpDirs.sh ~/Downloads ~/Sorted
 ```
 
 
 ## Features
-- use ``make clean-all`` to get rid of test directory, log file, sha256 comparison log files.
 - if multiple files exist with same name + extension, new files get `_number` after first one.
 - if user doesn't set a destination path, auto destination path is source path + `_cp` in same directory.
+
 ## Example (after run)
 ```shell
 ├── testDir

@@ -1,0 +1,38 @@
+name: Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build tool
+        run: make build
+
+      - name: Create test files
+        run: |
+          mkdir test_src
+          echo "hello" > test_src/file1.txt
+          echo "musicdata" > test_src/song.mp3
+          echo "imagedata" > test_src/picture.jpg
+
+      - name: Run tool
+        run: ./organizer --src test_src --dst test_dst
+
+      - name: Check output
+        run: |
+          chmod +x ./cmpDirs.sh
+          sudo ./cmpDirs.sh test_src test_dst
+

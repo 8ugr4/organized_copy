@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 )
 
@@ -22,6 +23,8 @@ const (
 )
 
 type Storage struct {
+	sync.Mutex
+	Entries      []os.DirEntry
 	images       []string
 	videos       []string
 	audios       []string
@@ -45,7 +48,18 @@ func NewStorage() *Storage {
 	}
 }
 
-func (s Storage) AddType(ext, fp string) string {
+type Operator struct {
+	Storage    Storage
+	Flags      Flags
+	CsvHandler *CSVLogger
+}
+
+func GetNewOperator() *Operator {
+	return new(Operator)
+}
+
+func (o *Operator) AddType(ext, fp string) string {
+	s := &o.Storage
 	switch ext {
 	// IMAGES
 	case "jpg", "JPG", "jpeg", "png", "webp", "jfif", "HEIC", "svg", "PNG":
@@ -97,7 +111,7 @@ func check(dst string) error {
 	return nil
 }
 
-func (s Storage) CreateSubdirs(dstBasePath string) error {
+func (o *Operator) CreateSubdirs(dstBasePath string) error {
 	if err := check(dstBasePath); err != nil {
 		return err
 	}
@@ -124,11 +138,11 @@ func uniqueDstPath(dstBasePath, dstDir, baseName string) string {
 	return dstNewPath
 }
 
-func (s Storage) Copy(dstPath, dstDir, fileAbsolutePath string, csvLogger *CSVLogger) error {
+func (o *Operator) Copy(dstPath, dstDir, fileAbsolutePath string) error {
 	srcFile, err := os.Open(fileAbsolutePath)
 	if err != nil {
 		slog.Warn("Skipping unreadable file", "path", fileAbsolutePath, "error", err)
-		s.Unprocessed = append(s.Unprocessed, fileAbsolutePath)
+		o.Storage.Unprocessed = append(o.Storage.Unprocessed, fileAbsolutePath)
 		return nil
 	}
 	defer func() {
@@ -160,30 +174,33 @@ func (s Storage) Copy(dstPath, dstDir, fileAbsolutePath string, csvLogger *CSVLo
 		return fmt.Errorf("failed to sync destination file:%s:%w", destinationFile.Name(), err)
 	}
 
-	if csvLogger != nil {
-		if err := csvLogger.Log("SUCCESS", srcFile.Name(), fileName, destinationFile.Name()); err != nil {
+	if o.CsvHandler != nil {
+		if err := o.CsvHandler.Log("SUCCESS", srcFile.Name(), fileName, destinationFile.Name()); err != nil {
 			slog.Error("Failed to log:", err)
 		}
 	}
 	return nil
 }
 
-func (s Storage) ProcessDir(srcPath, dstPath string, csvHandler *CSVLogger, r bool) (int, int, error) {
-	entries, err := os.ReadDir(srcPath)
+func (o *Operator) ProcessDir(dirpath string, r bool) (int, int, error) {
+	entries, err := os.ReadDir(dirpath)
 	if err != nil {
 		return 0, 0, err
 	}
 	slog.Info("", "entry count:", len(entries))
+	if o.Flags.DryRun {
+		os.Exit(1)
+	}
 
 	total := len(entries)
 	processed := 0
 	subDirCount := 0
 	extensions := make([]string, 0)
 	for _, entry := range entries {
-		fp := path.Join(srcPath, entry.Name())
+		fp := path.Join(dirpath, entry.Name())
 		if entry.IsDir() {
 			subDirCount++
-			if _, _, err := s.ProcessDir(fp, dstPath, csvHandler, true); err != nil {
+			if _, _, err := o.ProcessDir(fp, true); err != nil {
 				return 0, 0, err
 			}
 			continue
@@ -192,11 +209,11 @@ func (s Storage) ProcessDir(srcPath, dstPath string, csvHandler *CSVLogger, r bo
 		info, err := os.Stat(fp)
 		if err != nil {
 			slog.Warn("Skipping blocked file", "path", fp, "error", err)
-			s.Unprocessed = append(s.Unprocessed, fp)
+			o.Storage.Unprocessed = append(o.Storage.Unprocessed, fp)
 			continue
 		}
 		if !info.Mode().IsRegular() || info.Size() == 0 {
-			s.Unprocessed = append(s.Unprocessed, fp)
+			o.Storage.Unprocessed = append(o.Storage.Unprocessed, fp)
 			continue
 		}
 
@@ -206,8 +223,8 @@ func (s Storage) ProcessDir(srcPath, dstPath string, csvHandler *CSVLogger, r bo
 			ext = kind[1:]
 		}
 
-		typeDir := s.AddType(ext, fp)
-		if err := s.Copy(dstPath, typeDir, fp, csvHandler); err != nil {
+		typeDir := o.AddType(ext, fp)
+		if err := o.Copy(o.Flags.DstPath, typeDir, fp); err != nil {
 			return 0, 0, err
 		}
 		processed++

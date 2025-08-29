@@ -42,7 +42,7 @@ func DirSize(path string) (int64, error) {
 		}
 		return nil
 	}
-	
+
 	if err := calculateSize(path); err != nil {
 		return 0, err
 	}
