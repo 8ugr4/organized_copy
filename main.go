@@ -7,8 +7,8 @@ import (
 
 func main() {
 	startTime := time.Now()
-	o := pkg.GetNewOperator()
 
+	o := pkg.GetNewOperator()
 	o.Flags = pkg.GetFlags()
 
 	if err := pkg.ValidateDir(o.Flags.SrcPath); err != nil {

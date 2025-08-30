@@ -13,8 +13,19 @@ test-async:
 cmp:
 	./cmpDirs.sh ./testDir ./testDir_cp
 
-test-cmp: clean build test cmp
+integration-seq: clean build test cmp
+	make clean
+
+integration-async: clean build test-async cmp
+	make clean
 
 hyperfine: build
-	rm -f benchmark.csv && touch benchmark.csv
-	hyperfine 'make test && make clean' -w 20 -m 20 -s full -u millisecond --export-csv benchmark.csv
+	rm -f benchmark.csv && touch benchmark_seq.csv
+	hyperfine 'make test && make clean' -w 20 -m 20 -s full -u millisecond --export-csv benchmark_seq.csv
+
+hyperfine-async: build
+	rm -f benchmark.csv && touch benchmark_async.csv
+	hyperfine 'make test-async && make clean' -w 20 -m 20 -s full -u millisecond --export-csv benchmark_async.csv
+
+clean-benchmark:
+	rm -f benchmark* organizer

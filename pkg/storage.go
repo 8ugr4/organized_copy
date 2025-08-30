@@ -24,7 +24,6 @@ const (
 )
 
 type Storage struct {
-	sync.Mutex
 	Entries      []os.DirEntry
 	images       []string
 	videos       []string
@@ -213,24 +212,25 @@ func (o *Operator) Copy(dstPath, dstDir, fileAbsolutePath string) error {
 	return nil
 }
 
-func (o *Operator) skipcheck(fp string) {
+func (o *Operator) skipcheck(fp string) bool {
 	info, err := os.Stat(fp)
 	if err != nil {
 		slog.Warn("Skipping blocked file", "path", fp, "error", err)
 		o.Storage.Unprocessed = append(o.Storage.Unprocessed, fp)
-		return
+		return true
 	}
 	if !info.Mode().IsRegular() {
 		slog.Warn("Skipping blocked file", "path", fp, "error", "isn't a regular file")
 		o.Storage.Unprocessed = append(o.Storage.Unprocessed, fp)
-		return
+		return true
 	}
 
 	if info.Size() == 0 {
 		slog.Warn("Skipping blocked file", "path", fp, "error", "has size 0")
 		o.Storage.Unprocessed = append(o.Storage.Unprocessed, fp)
-		return
+		return true
 	}
+	return false
 }
 
 func (o *Operator) AsyncProcessDir(dirpath string, r bool) (int, error) {
@@ -252,6 +252,9 @@ func (o *Operator) AsyncProcessDir(dirpath string, r bool) (int, error) {
 
 	for _, entry := range entries {
 		fp := path.Join(dirpath, entry.Name())
+		if strings.Contains(fp, "xyz") {
+			fmt.Println("debug here")
+		}
 		if entry.IsDir() {
 			o.SubDirCount++
 			if _, err := o.AsyncProcessDir(fp, true); err != nil {
@@ -259,7 +262,9 @@ func (o *Operator) AsyncProcessDir(dirpath string, r bool) (int, error) {
 			}
 			continue
 		}
-		o.skipcheck(fp)
+		if o.skipcheck(fp) {
+			continue
+		}
 
 		kind := path.Ext(fp)
 		ext := ""
@@ -272,7 +277,7 @@ func (o *Operator) AsyncProcessDir(dirpath string, r bool) (int, error) {
 		wg.Add(1)
 		sem <- struct{}{} // get slot
 		go func(fp, typeDir string, ext string) {
-			wg.Done()
+			defer wg.Done()
 			defer func() { <-sem }() // release slot
 
 			if err := o.Copy(o.Flags.DstPath, typeDir, fp); err != nil {
@@ -323,7 +328,9 @@ func (o *Operator) ProcessDir(dirpath string, r bool) (int, error) {
 			}
 			continue
 		}
-		o.skipcheck(fp)
+		if o.skipcheck(fp) {
+			continue
+		}
 
 		kind := path.Ext(fp)
 		ext := ""

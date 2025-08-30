@@ -20,6 +20,7 @@ done < source.txt
 
 if [ $missing -eq 0 ]; then
 	echo "SUCCESS"
+	exit 0
 else
 	echo "FAILURE"
 	exit 1
