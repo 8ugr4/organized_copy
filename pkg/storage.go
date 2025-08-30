@@ -182,6 +182,26 @@ func (o *Operator) Copy(dstPath, dstDir, fileAbsolutePath string) error {
 	return nil
 }
 
+func (o *Operator) skipcheck(fp string) {
+	info, err := os.Stat(fp)
+	if err != nil {
+		slog.Warn("Skipping blocked file", "path", fp, "error", err)
+		o.Storage.Unprocessed = append(o.Storage.Unprocessed, fp)
+		return
+	}
+	if !info.Mode().IsRegular() {
+		slog.Warn("Skipping blocked file", "path", fp, "error", "isn't a regular file")
+		o.Storage.Unprocessed = append(o.Storage.Unprocessed, fp)
+		return
+	}
+
+	if info.Size() == 0 {
+		slog.Warn("Skipping blocked file", "path", fp, "error", "has size 0")
+		o.Storage.Unprocessed = append(o.Storage.Unprocessed, fp)
+		return
+	}
+}
+
 func (o *Operator) ProcessDir(dirpath string, r bool) (int, int, error) {
 	entries, err := os.ReadDir(dirpath)
 	if err != nil {
@@ -205,17 +225,7 @@ func (o *Operator) ProcessDir(dirpath string, r bool) (int, int, error) {
 			}
 			continue
 		}
-
-		info, err := os.Stat(fp)
-		if err != nil {
-			slog.Warn("Skipping blocked file", "path", fp, "error", err)
-			o.Storage.Unprocessed = append(o.Storage.Unprocessed, fp)
-			continue
-		}
-		if !info.Mode().IsRegular() || info.Size() == 0 {
-			o.Storage.Unprocessed = append(o.Storage.Unprocessed, fp)
-			continue
-		}
+		o.skipcheck(fp)
 
 		kind := path.Ext(fp)
 		ext := ""
