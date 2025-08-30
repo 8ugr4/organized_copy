@@ -29,10 +29,8 @@ func main() {
 		panic(err)
 	}
 
-	extensions, err := o.ProcessDir(o.Flags.SrcPath, false)
-	if err != nil {
-		panic(err)
-	}
+	var extensions int
+	extensions, err = o.Operate()
 
 	slog.Debug("", "unique extension count", extensions)
 	slog.Debug("", "sub-dir count", o.SubDirCount)

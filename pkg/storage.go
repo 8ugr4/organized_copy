@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 )
 
@@ -144,7 +145,7 @@ func (o *Operator) Copy(dstPath, dstDir, fileAbsolutePath string) error {
 	srcFile, err := os.Open(fileAbsolutePath)
 	if err != nil {
 		slog.Warn("Skipping unreadable file", "path", fileAbsolutePath, "error", err)
-		o.Storage.Unprocessed = append(o.Storage.Unprocessed, fileAbsolutePath)
+		// o.Storage.Unprocessed = append(o.Storage.Unprocessed, fileAbsolutePath)
 		return nil
 	}
 	defer func() {
@@ -205,7 +206,74 @@ func (o *Operator) skipcheck(fp string) {
 	}
 }
 
-func (o *Operator) ProcessDir(dirpath string, r bool) (int, int, error) {
+func (o *Operator) AsyncProcessDir(dirpath string, r bool) (int, error) {
+	entries, err := os.ReadDir(dirpath)
+	if err != nil {
+		return 0, err
+	}
+	slog.Debug("", "entry count:", len(entries))
+	if o.Flags.DryRun {
+		os.Exit(1)
+	}
+
+	total := len(entries)
+	processed := int64(0)
+	extensions := make([]string, 0)
+	var extMutex, unprocMutex = sync.Mutex{}, sync.Mutex{}
+	sem := make(chan struct{}, 10)
+	var wg sync.WaitGroup
+
+	for _, entry := range entries {
+		fp := path.Join(dirpath, entry.Name())
+		if entry.IsDir() {
+			o.SubDirCount++
+			if _, err := o.AsyncProcessDir(fp, true); err != nil {
+				return 0, err
+			}
+			continue
+		}
+		o.skipcheck(fp)
+
+		kind := path.Ext(fp)
+		ext := ""
+		if kind != "" {
+			ext = kind[1:]
+		}
+
+		typeDir := o.AddType(ext, fp)
+
+		wg.Add(1)
+		sem <- struct{}{} // get slot
+		go func(fp, typeDir string, ext string) {
+			wg.Done()
+			defer func() { <-sem }() // release slot
+
+			if err := o.Copy(o.Flags.DstPath, typeDir, fp); err != nil {
+				unprocMutex.Lock()
+				o.Storage.Unprocessed = append(o.Storage.Unprocessed, fp)
+				unprocMutex.Unlock()
+				return
+			}
+
+			atomic.AddInt64(&processed, 1)
+			if !r {
+				pct := float64(atomic.LoadInt64(&processed)) / float64(total) * 100
+				if atomic.LoadInt64(&processed)%int64(max(1, total/20)) == 0 {
+					slog.Info("progress", "completed", fmt.Sprintf("%.1f%%", pct))
+				}
+			}
+			extMutex.Lock()
+			extensions = append(extensions, ext)
+			extMutex.Unlock()
+		}(fp, typeDir, ext)
+	}
+	wg.Wait()
+	extensions = RemoveDuplicateStr(extensions)
+
+	return len(extensions), nil
+}
+
+func (o *Operator) ProcessDir(dirpath string, r bool) (int, error) {
 	entries, err := os.ReadDir(dirpath)
 	if err != nil {
 		return 0, err
@@ -250,4 +318,14 @@ func (o *Operator) ProcessDir(dirpath string, r bool) (int, int, error) {
 	extensions = RemoveDuplicateStr(extensions)
 
 	return len(extensions), nil
+}
+
+func (o *Operator) Operate() (int, error) {
+	switch o.Flags.Async {
+	case true:
+		return o.AsyncProcessDir(o.Flags.SrcPath, false)
+	case false:
+		return o.ProcessDir(o.Flags.SrcPath, false)
+	}
+	return 0, nil
 }

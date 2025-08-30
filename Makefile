@@ -7,7 +7,10 @@ build:
 test:
 	./organizer --src ./testDir --verbose
 
-cmp: clean
+test-async:
+	./organizer --src ./testDir --verbose --async
+
+cmp:
 	./cmpDirs.sh ./testDir ./testDir_cp
 
 test-cmp: clean build test cmp
