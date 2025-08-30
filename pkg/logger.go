@@ -2,8 +2,11 @@ package pkg
 
 import (
 	"encoding/csv"
+	"log/slog"
 	"os"
+	"strconv"
 	"sync"
+	"time"
 )
 
 // CSVLogger writes log entries into a CSV file with three columns:
@@ -51,4 +54,21 @@ func (l *CSVLogger) Close() error {
 	defer l.mu.Unlock()
 	l.writer.Flush()
 	return l.file.Close()
+}
+
+func ResultLog(extensions int, o *Operator, startTime time.Time) {
+	slog.Debug("", "unique extension count", extensions)
+	slog.Debug("", "sub-dir count", o.SubDirCount)
+	slog.Debug("", "skipped file count", len(o.Storage.Unprocessed))
+	if len(o.Storage.Unprocessed) > 0 {
+		for _, unprocessedFileName := range o.Storage.Unprocessed {
+			slog.Warn("", "skipped", unprocessedFileName)
+		}
+	}
+	slog.Info("", "total runtime", time.Since(startTime))
+	if o.CsvHandler != nil {
+		if err := o.CsvHandler.Log(time.Since(startTime).String(), "skipped file count", "total runtime", strconv.Itoa(len(o.Storage.Unprocessed))); err != nil {
+			slog.Error("Failed to log:", err)
+		}
+	}
 }

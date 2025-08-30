@@ -55,10 +55,33 @@ type Operator struct {
 	CsvHandler     *CSVLogger
 	SubDirCount    int
 	ExtensionCount int
+	sem            chan struct{}
+	once           sync.Once
+	mu             sync.Mutex
+}
+
+func (o *Operator) initPool(n int) {
+	o.once.Do(func() {
+		if n <= 0 {
+			n = 8
+		}
+		o.sem = make(chan struct{}, n)
+	})
 }
 
 func GetNewOperator() *Operator {
-	return new(Operator)
+	o := &Operator{
+		Storage:        *NewStorage(),
+		Flags:          Flags{},
+		CsvHandler:     nil,
+		SubDirCount:    0,
+		ExtensionCount: 0,
+		sem:            nil,
+		once:           sync.Once{},
+		mu:             sync.Mutex{},
+	}
+	o.initPool(8)
+	return o
 }
 
 func (o *Operator) AddType(ext, fp string) string {
@@ -115,6 +138,10 @@ func check(dst string) error {
 }
 
 func (o *Operator) CreateSubdirs(dstBasePath string) error {
+	if o.Flags.DryRun {
+		return nil
+	}
+
 	if err := check(dstBasePath); err != nil {
 		return err
 	}
