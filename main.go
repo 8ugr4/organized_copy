@@ -17,9 +17,10 @@ func main() {
 		panic(err)
 	}
 
-	s := pkg.NewStorage()
-	if err := o.CreateSubdirs(o.Flags.DstPath); err != nil {
-		panic(err)
+	if !o.Flags.DryRun {
+		if err := o.CreateSubdirs(o.Flags.DstPath); err != nil {
+			panic(err)
+		}
 	}
 
 	var err error
@@ -28,23 +29,23 @@ func main() {
 		panic(err)
 	}
 
-	extensions, subDirCount, err := o.ProcessDir(o.Flags.SrcPath, false)
+	extensions, err := o.ProcessDir(o.Flags.SrcPath, false)
 	if err != nil {
 		panic(err)
 	}
 
-	slog.Info("", "unique extension count", extensions)
-	slog.Info("", "sub-dir count", subDirCount)
-	slog.Info("", "skipped file count", len(s.Unprocessed))
-	if len(s.Unprocessed) > 0 {
-		for _, unprocessedFileName := range s.Unprocessed {
+	slog.Debug("", "unique extension count", extensions)
+	slog.Debug("", "sub-dir count", o.SubDirCount)
+	slog.Debug("", "skipped file count", len(o.Storage.Unprocessed))
+	if len(o.Storage.Unprocessed) > 0 {
+		for _, unprocessedFileName := range o.Storage.Unprocessed {
 			slog.Warn("", "skipped", unprocessedFileName)
 		}
 	}
 	slog.Info("", "total runtime", time.Since(startTime))
 
 	if o.CsvHandler != nil {
-		if err := o.CsvHandler.Log(time.Since(startTime).String(), "skipped file count", "total runtime", strconv.Itoa(len(s.Unprocessed))); err != nil {
+		if err := o.CsvHandler.Log(time.Since(startTime).String(), "skipped file count", "total runtime", strconv.Itoa(len(o.Storage.Unprocessed))); err != nil {
 			slog.Error("Failed to log:", err)
 		}
 	}

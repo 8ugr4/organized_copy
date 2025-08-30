@@ -49,9 +49,11 @@ func NewStorage() *Storage {
 }
 
 type Operator struct {
-	Storage    Storage
-	Flags      Flags
-	CsvHandler *CSVLogger
+	Storage        Storage
+	Flags          Flags
+	CsvHandler     *CSVLogger
+	SubDirCount    int
+	ExtensionCount int
 }
 
 func GetNewOperator() *Operator {
@@ -179,6 +181,7 @@ func (o *Operator) Copy(dstPath, dstDir, fileAbsolutePath string) error {
 			slog.Error("Failed to log:", err)
 		}
 	}
+
 	return nil
 }
 
@@ -205,7 +208,7 @@ func (o *Operator) skipcheck(fp string) {
 func (o *Operator) ProcessDir(dirpath string, r bool) (int, int, error) {
 	entries, err := os.ReadDir(dirpath)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	slog.Info("", "entry count:", len(entries))
 	if o.Flags.DryRun {
@@ -220,8 +223,8 @@ func (o *Operator) ProcessDir(dirpath string, r bool) (int, int, error) {
 		fp := path.Join(dirpath, entry.Name())
 		if entry.IsDir() {
 			subDirCount++
-			if _, _, err := o.ProcessDir(fp, true); err != nil {
-				return 0, 0, err
+			if _, err := o.ProcessDir(fp, true); err != nil {
+				return 0, err
 			}
 			continue
 		}
@@ -235,7 +238,7 @@ func (o *Operator) ProcessDir(dirpath string, r bool) (int, int, error) {
 
 		typeDir := o.AddType(ext, fp)
 		if err := o.Copy(o.Flags.DstPath, typeDir, fp); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		processed++
 		percentage := float64(processed) / float64(total) * 100
@@ -246,5 +249,5 @@ func (o *Operator) ProcessDir(dirpath string, r bool) (int, int, error) {
 	}
 	extensions = RemoveDuplicateStr(extensions)
 
-	return subDirCount, len(extensions), nil
+	return len(extensions), nil
 }
