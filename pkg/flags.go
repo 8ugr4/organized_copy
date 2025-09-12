@@ -46,7 +46,7 @@ func GetFlags() Flags {
 	}
 
 	if *rulePath == "" {
-		slog.Error("path for rules file is empty, going to use default settings from 'rules.yaml'")
+		slog.Warn("path for rules file is empty, going to use default settings from 'rules.yaml'")
 		*rulePath = "./rules.yaml"
 	}
 
