@@ -4,7 +4,6 @@ on:
   push:
     branches: [ main ]
   pull_request:
-    branches: [ main ]
 
 jobs:
   build-and-test:
@@ -17,6 +16,8 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
+      - name: get libs
+        uses: sudo apt-get update && sudo apt-get install -y imagemagick sox
 
       - name: Build tool
         run: make build
@@ -24,15 +25,17 @@ jobs:
       - name: Create test files
         run: |
           mkdir test_src
+          convert -size 100x100 xc:black test_src/picture.png
+          sox -n -r 44100 -b 16 test_src/audio.wav synth 5 sine 440
+          echo -n -e '\x52\x49\x46\x46' > test_src/audio_a.wav
           echo "hello" > test_src/file1.txt
-          echo "musicdata" > test_src/song.mp3
-          echo "imagedata" > test_src/picture.jpg
 
       - name: Run tool
-        run: ./organizer --src test_src --dst test_dst
-
+        run: |
+          ./organizer --src test_src --dst test_dst --async=false
+          ./organizer --src test_src --dst test_dst_async
       - name: Check output
         run: |
           chmod +x ./cmpDirs.sh
           sudo ./cmpDirs.sh test_src test_dst
-
+          sudo ./cmpDirs.sh test_src test_dst_async
