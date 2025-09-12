@@ -16,6 +16,9 @@ rules:
                   "txt", "epub", "csv", "pptx", "accdb",
                   "xlsx", "bib", "sql", "json", "rtf",
                   "tex", "ini", "odt" ]
+    separate : ["pdf"]
+
+
   - category: archives
     extensions: ["zip", "rar", "pcapng", "msix", "iso"]
 

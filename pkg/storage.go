@@ -165,12 +165,22 @@ func uniqueDstPath(dstBasePath, dstDir, specialDir, baseName string) string {
 		dstNewPath = path.Join(dstBasePath, dstDir, specialDir, baseName)
 	}
 
+	// TODO: improve this following idiotic logic
+	original := dstNewPath
 	i := 1
 	for {
-		if _, err := os.Stat(dstNewPath); os.IsNotExist(err) {
-			break
+		if _, err := os.Stat(dstNewPath); err != nil {
+			if os.IsNotExist(err) {
+				break
+			}
+			slog.Error("stat call failed during trying to create a unique destination path", "PATH:", dstNewPath)
+			panic(err)
 		}
-		dstNewPath = path.Join(dstBasePath, dstDir, fmt.Sprintf("%s_%d%s", base, i, ext))
+		if specialDir == "" {
+			dstNewPath = path.Join(path.Dir(original), fmt.Sprintf("%s_%d%s", base, i, ext))
+		} else {
+			dstNewPath = path.Join(path.Dir(original), fmt.Sprintf("%s_%d%s", base, i, ext))
+		}
 		i++
 	}
 	return dstNewPath
@@ -251,7 +261,6 @@ func (o *Operator) AsyncProcessDir(dirpath string, r bool) (int, error) {
 	if o.Flags.DryRun {
 		os.Exit(1)
 	}
-
 	total := len(entries)
 	processed := int64(0)
 	extensions := make([]string, 0)
