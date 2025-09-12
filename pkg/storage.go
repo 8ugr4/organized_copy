@@ -22,6 +22,7 @@ type Storage struct {
 	Categories     map[string][]string // [categories][]extensions
 	Extensions     map[string]string   // [extensions][categories]
 	OutDirectories map[string][]string // []categories[files]
+	SubDirs        map[string][]string // [subDir][]extensions
 	Unprocessed    []string
 }
 
@@ -30,6 +31,7 @@ func NewStorage() *Storage {
 		Categories:     make(map[string][]string),
 		Extensions:     make(map[string]string),
 		OutDirectories: make(map[string][]string),
+		SubDirs:        make(map[string][]string),
 		Unprocessed:    make([]string, 0),
 	}
 }
@@ -76,7 +78,24 @@ func (o *Operator) BuildStorageMaps(c *Config) {
 			o.Storage.Categories[rule.Category] = append(o.Storage.Categories[rule.Category], extension)
 			o.Storage.Extensions[extension] = rule.Category
 		}
+		if rule.SeparateExists() {
+			for _, subDir := range rule.Separate {
+				o.Storage.SubDirs[rule.Category] = append(o.Storage.SubDirs[rule.Category], subDir)
+			}
+		}
 	}
+}
+
+func (o *Operator) GetSeparateSubdirs(category, ext string) string {
+	if subdirs, exists := o.Storage.SubDirs[category]; exists {
+		for _, sub := range subdirs {
+			if sub == ext {
+				return sub
+			}
+		}
+		return ""
+	}
+	return ""
 }
 
 func (o *Operator) GetExtensionCategory(ext string) (string, bool) {
@@ -86,6 +105,7 @@ func (o *Operator) GetExtensionCategory(ext string) (string, bool) {
 	return unknown, false
 }
 
+// AddType adds and returns category of the file
 func (o *Operator) AddType(ext, fp string) string {
 	category, exists := o.GetExtensionCategory(ext)
 	if !exists {
@@ -137,10 +157,14 @@ func (o *Operator) CreateSubdirs(dstBasePath string, rules []Rule) error {
 	return nil
 }
 
-func uniqueDstPath(dstBasePath, dstDir, baseName string) string {
+func uniqueDstPath(dstBasePath, dstDir, specialDir, baseName string) string {
 	ext := filepath.Ext(baseName)
 	base := strings.TrimSuffix(baseName, ext)
 	dstNewPath := path.Join(dstBasePath, dstDir, baseName)
+	if specialDir != "" {
+		dstNewPath = path.Join(dstBasePath, dstDir, specialDir, baseName)
+	}
+
 	i := 1
 	for {
 		if _, err := os.Stat(dstNewPath); os.IsNotExist(err) {
@@ -152,7 +176,7 @@ func uniqueDstPath(dstBasePath, dstDir, baseName string) string {
 	return dstNewPath
 }
 
-func (o *Operator) Copy(dstPath, dstDir, fileAbsolutePath string) error {
+func (o *Operator) Copy(dstPath, dstDir, specialDir, fileAbsolutePath string) error {
 	srcFile, err := os.Open(fileAbsolutePath)
 	if err != nil {
 		slog.Warn("Skipping unreadable file", "path", fileAbsolutePath, "error", err)
@@ -167,7 +191,7 @@ func (o *Operator) Copy(dstPath, dstDir, fileAbsolutePath string) error {
 	}()
 
 	_, fileName := path.Split(fileAbsolutePath)
-	destinationFile, err := os.Create(uniqueDstPath(dstPath, dstDir, fileName))
+	destinationFile, err := os.Create(uniqueDstPath(dstPath, dstDir, specialDir, fileName))
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
@@ -261,8 +285,8 @@ func (o *Operator) AsyncProcessDir(dirpath string, r bool) (int, error) {
 		go func(fp, typeDir string, ext string) {
 			defer wg.Done()
 			defer func() { <-sem }() // release slot
-
-			if err := o.Copy(o.Flags.DstPath, typeDir, fp); err != nil {
+			specialSubDir := o.GetSeparateSubdirs(typeDir, ext)
+			if err := o.Copy(o.Flags.DstPath, typeDir, specialSubDir, fp); err != nil {
 				unprocMutex.Lock()
 				o.Storage.Unprocessed = append(o.Storage.Unprocessed, fp)
 				unprocMutex.Unlock()
@@ -321,7 +345,8 @@ func (o *Operator) ProcessDir(dirpath string, r bool) (int, error) {
 		}
 
 		typeDir := o.AddType(ext, fp)
-		if err := o.Copy(o.Flags.DstPath, typeDir, fp); err != nil {
+		specialSubDir := o.GetSeparateSubdirs(typeDir, ext)
+		if err := o.Copy(o.Flags.DstPath, typeDir, specialSubDir, fp); err != nil {
 			return 0, err
 		}
 		processed++
