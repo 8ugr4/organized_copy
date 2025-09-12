@@ -14,37 +14,23 @@ import (
 )
 
 const (
-	images       = "images"
-	videos       = "videos"
-	audios       = "audios"
-	archives     = "archives"
-	documents    = "documents"
-	applications = "applications"
-	unknown      = "unknown"
+	unknown = "unknown"
 )
 
 type Storage struct {
-	Entries      []os.DirEntry
-	images       []string
-	videos       []string
-	audios       []string
-	archives     []string
-	documents    []string
-	applications []string
-	unknown      []string
-	Unprocessed  []string
+	Entries        []os.DirEntry
+	Categories     map[string][]string // [categories][]extensions
+	Extensions     map[string]string   // [extensions][categories]
+	OutDirectories map[string][]string // []categories[files]
+	Unprocessed    []string
 }
 
 func NewStorage() *Storage {
 	return &Storage{
-		images:       make([]string, 0),
-		videos:       make([]string, 0),
-		audios:       make([]string, 0),
-		archives:     make([]string, 0),
-		documents:    make([]string, 0),
-		applications: make([]string, 0),
-		unknown:      make([]string, 0),
-		Unprocessed:  make([]string, 0),
+		Categories:     make(map[string][]string),
+		Extensions:     make(map[string]string),
+		OutDirectories: make(map[string][]string),
+		Unprocessed:    make([]string, 0),
 	}
 }
 
@@ -83,48 +69,32 @@ func GetNewOperator() *Operator {
 	return o
 }
 
+func (o *Operator) BuildStorageMaps(c *Config) {
+	for _, rule := range c.Rules {
+		o.Storage.Categories[rule.Category] = make([]string, 0)
+		for _, extension := range rule.Extensions {
+			o.Storage.Categories[rule.Category] = append(o.Storage.Categories[rule.Category], extension)
+			o.Storage.Extensions[extension] = rule.Category
+		}
+	}
+}
+
+func (o *Operator) GetExtensionCategory(ext string) (string, bool) {
+	if val, ok := o.Storage.Extensions[ext]; ok {
+		return val, true
+	}
+	return unknown, false
+}
+
 func (o *Operator) AddType(ext, fp string) string {
-	s := &o.Storage
-	switch ext {
-	// IMAGES
-	case "jpg", "JPG", "jpeg", "png", "webp", "jfif", "HEIC", "svg", "PNG":
-		s.images = append(s.images, fp)
-		return images
-
-	// VIDEOS
-	case "mp4", "gif", "mpeg", "ogg":
-		s.videos = append(s.videos, fp)
-		return videos
-
-	// AUDIOS
-	case "wav", "asd", "mp3", "aac", "aif":
-		s.audios = append(s.audios, fp)
-		return audios
-
-	// DOCUMENTS
-	case "pdf", "PDF", "doc", "docx", "dotx",
-		"txt", "epub", "csv", "pptx", "accdb",
-		"xlsx", "bib", "sql", "json", "rtf",
-		"tex", "ini", "odt":
-		s.documents = append(s.documents, fp)
-		return documents
-
-	// ARCHIVES
-	case "zip", "rar", "pcapng", "msix", "iso":
-		s.archives = append(s.archives, fp)
-		return archives
-
-		// APPLICATIONS
-	case "ipynb", "m", "exe", "py", "whl", "pcap", "msi":
-		s.applications = append(s.applications, fp)
-		return applications
-	// UNKNOWN
-	case "unknown", "rdf", "mdl", "sig", "hbs", "dat", "pkpass", "tmp", " ":
-		s.unknown = append(s.unknown, fp)
-		return unknown
-	default:
+	category, exists := o.GetExtensionCategory(ext)
+	if !exists {
+		slog.Warn("unknown extension, doesn't match to rules", "extension", ext)
+		slog.Warn("copying to the unknown dir", "filepath", fp)
 		return unknown
 	}
+	o.Storage.OutDirectories[category] = append(o.Storage.OutDirectories[category], fp)
+	return category
 }
 
 func check(dst string) error {
@@ -136,7 +106,7 @@ func check(dst string) error {
 	return nil
 }
 
-func (o *Operator) CreateSubdirs(dstBasePath string) error {
+func (o *Operator) CreateSubdirs(dstBasePath string, rules []Rule) error {
 	if o.Flags.DryRun {
 		return nil
 	}
@@ -144,14 +114,29 @@ func (o *Operator) CreateSubdirs(dstBasePath string) error {
 	if err := check(dstBasePath); err != nil {
 		return err
 	}
-	dirNames := []string{"images", "videos", "audios", "archives", "documents", "applications", "unknown"}
-	for _, dirName := range dirNames {
-		if err := os.Mkdir(path.Join(dstBasePath, dirName), syscall.O_CREAT|syscall.O_EXCL|syscall.O_WRONLY); err != nil {
+
+	for _, rule := range rules {
+		if err := os.Mkdir(path.Join(dstBasePath, rule.Category), syscall.O_CREAT|syscall.O_EXCL|syscall.O_WRONLY); err != nil {
 			return err
 		}
+		if rule.SeparateExists() {
+			for _, separateDir := range rule.Separate {
+				if err := os.Mkdir(path.Join(dstBasePath, rule.Category, separateDir), syscall.O_CREAT|syscall.O_EXCL|syscall.O_WRONLY); err != nil {
+					return err
+				}
+			}
+		}
 	}
+
+	// dirNames := []string{"images", "videos", "audios", "archives", "documents", "applications", "unknown"}
+	// for _, dirName := range dirNames {
+	//	 if err := os.Mkdir(path.Join(dstBasePath, dirName), syscall.O_CREAT|syscall.O_EXCL|syscall.O_WRONLY); err != nil {
+	//		return err
+	//	}
+	// }
 	return nil
 }
+
 func uniqueDstPath(dstBasePath, dstDir, baseName string) string {
 	ext := filepath.Ext(baseName)
 	base := strings.TrimSuffix(baseName, ext)
@@ -252,9 +237,6 @@ func (o *Operator) AsyncProcessDir(dirpath string, r bool) (int, error) {
 
 	for _, entry := range entries {
 		fp := path.Join(dirpath, entry.Name())
-		if strings.Contains(fp, "xyz") {
-			fmt.Println("debug here")
-		}
 		if entry.IsDir() {
 			o.SubDirCount++
 			if _, err := o.AsyncProcessDir(fp, true); err != nil {
@@ -363,3 +345,50 @@ func (o *Operator) Operate() (int, error) {
 	}
 	return 0, nil
 }
+
+/*
+
+func (o *Operator) AddType(ext, fp string) string {
+	s := &o.Storage
+	switch ext {
+	// IMAGES
+	case "jpg", "JPG", "jpeg", "png", "webp", "jfif", "HEIC", "svg", "PNG":
+		s.images = append(s.images, fp)
+		return images
+
+	// VIDEOS
+	case "mp4", "gif", "mpeg", "ogg":
+		s.videos = append(s.videos, fp)
+		return videos
+
+	// AUDIOS
+	case "wav", "asd", "mp3", "aac", "aif":
+		s.audios = append(s.audios, fp)
+		return audios
+
+	// DOCUMENTS
+	case "pdf", "PDF", "doc", "docx", "dotx",
+		"txt", "epub", "csv", "pptx", "accdb",
+		"xlsx", "bib", "sql", "json", "rtf",
+		"tex", "ini", "odt":
+		s.documents = append(s.documents, fp)
+		return documents
+
+	// ARCHIVES
+	case "zip", "rar", "pcapng", "msix", "iso":
+		s.archives = append(s.archives, fp)
+		return archives
+
+		// APPLICATIONS
+	case "ipynb", "m", "exe", "py", "whl", "pcap", "msi":
+		s.applications = append(s.applications, fp)
+		return applications
+	// UNKNOWN
+	case "unknown", "rdf", "mdl", "sig", "hbs", "dat", "pkpass", "tmp", " ":
+		s.unknown = append(s.unknown, fp)
+		return unknown
+	default:
+		return unknown
+	}
+}
+*/

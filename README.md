@@ -18,6 +18,8 @@ Lightweight CLI tool written in Go that copies files from a source directory to 
 ## Features
 - if multiple files exist with same name + extension, new files get `_number` after first one.
 - if user doesn't set a destination path, auto destination path is source path + `_cp` in same directory.
+- User can set a rule-set, defining which files will go to which destination.
+- **WIP** 'name_contains' and 'priority_order' is still under development.
 
 ## Example (after run)
 ```shell
