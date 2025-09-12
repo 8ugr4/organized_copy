@@ -1,0 +1,35 @@
+rules:
+#  there could be couple different logics
+# if the extension doesn't exist in following, there should be a bucket too.
+  - category: images
+    extensions: [ "jpg", "JPG", "jpeg", "png", "webp", "jfif", "HEIC", "svg", "PNG" ]
+
+  - category: videos
+    extensions: [ "mp4", "gif", "mpeg", "ogg" ]
+    separate: ["mp4"]
+
+  - category: audios
+    extensions: [ "wav", "asd", "mp3", "aac", "aif" ]
+
+  - category: documents
+    extensions: [ "pdf", "PDF", "doc", "docx", "dotx",
+                  "txt", "epub", "csv", "pptx", "accdb",
+                  "xlsx", "bib", "sql", "json", "rtf",
+                  "tex", "ini", "odt" ]
+  - category: archives
+    extensions: ["zip", "rar", "pcapng", "msix", "iso"]
+
+  - category: applications
+    extensions: ["ipynb", "m", "exe", "py", "whl", "pcap", "msi"]
+
+  - category: unknown
+    extensions: ["unknown", "rdf", "mdl", "sig", "hbs", "dat", "pkpass", "tmp", " "]
+
+  - category: special
+    name_contains: [ "user1234" ]
+
+  - category: special2
+    name_contains: [ "userABCD" ]
+
+override:
+  priority_order :  ["special","special2"]
