@@ -1,13 +1,13 @@
 clean:
-	rm -r -f testDir_cp log.csv source.txt source_hashes.txt destination.txt destination_hashes.txt
+	rm -r -f organizer testDir_cp log.csv source.txt source_hashes.txt destination.txt destination_hashes.txt
 
 build:
 	go build -o organizer main.go
 
-test:
+test: build
 	./organizer --src ./testDir --verbose
 
-test-async:
+test-async: build
 	./organizer --src ./testDir --verbose --async
 
 cmp:
