@@ -24,7 +24,7 @@ func GetFlags() Flags {
 	rulePath := flag.String("rules", "./rules.yaml", "output category rules")
 	log := flag.String("log", "", "Log path")
 	dryRun := flag.Bool("dry-run", false, "Dry-run option")
-	async := flag.Bool("async", true, "Faster async option, uses goroutines")
+	async := flag.Bool("async", false, "Faster async option, uses goroutines")
 	verbose := flag.Bool("verbose", false, "Set to debug mode")
 	// TODO: implement me: validate := flag.Bool("validate", false, "Enable SHA256 validation after copy operation")
 
