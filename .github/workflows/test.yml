@@ -31,10 +31,12 @@ jobs:
           echo -n -e '\x52\x49\x46\x46' > test_src/audio_a.wav
           echo "hello" > test_src/file1.txt
 
-      - name: Run tool
+      - name: Testing
         run: |
-          ./organizer --src test_src --dst test_dst --async=false
-          ./organizer --src test_src --dst test_dst_async
+          echo "sync run testing"
+          ./organizer --src test_src --dst test_dst
+          echo "async run testing"
+          ./organizer --src test_src --dst test_dst_async --async true
       - name: Check output
         run: |
           chmod +x ./cmpDirs.sh
