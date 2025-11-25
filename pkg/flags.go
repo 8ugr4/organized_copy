@@ -18,7 +18,7 @@ type Flags struct {
 	Verbose  bool
 }
 
-func GetFlags() Flags {
+func GetFlags(args []string) Flags {
 	srcPath := flag.String("src", "./testDir", "Source directory path")
 	dstPath := flag.String("dst", "", "Destination directory path")
 	rulePath := flag.String("rules", "./rules.yaml", "output category rules")
@@ -59,4 +59,11 @@ func GetFlags() Flags {
 		Verbose:  *verbose,
 		RulePath: *rulePath,
 	}
+}
+
+func GetSubCommand() string {
+	if len(os.Args) < 2 {
+		fmt.Println("expected 'org-dir' or 'sort-img' subcommand")
+	}
+	return os.Args[1]
 }

@@ -19,7 +19,7 @@ while IFS= read -r line; do
 done < source.txt
 
 if [ $missing -eq 0 ]; then
-	echo "SUCCESS"
+	echo "SUCCESS: SRC AND DST DIRS ARE EQUAL"
 	exit 0
 else
 	echo "FAILURE"
