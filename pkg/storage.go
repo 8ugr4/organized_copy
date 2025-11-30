@@ -79,9 +79,7 @@ func (o *Operator) BuildStorageMaps(c *Config) {
 			o.Storage.Extensions[extension] = rule.Category
 		}
 		if rule.SeparateExists() {
-			for _, subDir := range rule.Separate {
-				o.Storage.SubDirs[rule.Category] = append(o.Storage.SubDirs[rule.Category], subDir)
-			}
+			o.Storage.SubDirs[rule.Category] = append(o.Storage.SubDirs[rule.Category], rule.Separate...)
 		}
 	}
 }
@@ -224,7 +222,7 @@ func (o *Operator) Copy(dstPath, dstDir, specialDir, fileAbsolutePath string) er
 
 	if o.CsvHandler != nil {
 		if err := o.CsvHandler.Log("SUCCESS", srcFile.Name(), fileName, destinationFile.Name()); err != nil {
-			slog.Error("Failed to log:", err)
+			slog.Error("failure-log", "error", err.Error())
 		}
 	}
 
@@ -360,7 +358,7 @@ func (o *Operator) ProcessDir(dirpath string, r bool) (int, error) {
 		}
 		processed++
 		percentage := float64(processed) / float64(total) * 100
-		if processed%max(1, total/20) == 0 && r == false {
+		if processed%max(1, total/20) == 0 && !r {
 			slog.Info("progress", "completed", fmt.Sprintf("%.1f%%", percentage))
 		}
 		extensions = append(extensions, ext)

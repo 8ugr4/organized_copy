@@ -36,8 +36,5 @@ func ReadCategories(path string) (*Config, error) {
 }
 
 func (r Rule) SeparateExists() bool {
-	if len(r.Separate) > 0 {
-		return true
-	}
-	return false
+	return len(r.Separate) > 0
 }

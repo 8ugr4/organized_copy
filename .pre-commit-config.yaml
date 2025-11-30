@@ -1,11 +1,13 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v2.0.0
+    rev: v6.0.0
     hooks:
-      -   id: check-merge-conflict
-      -   id: trailing-whitespace
-      -   id: end-of-file-fixer
-      -   id: check-yaml
+      - id: check-merge-conflict
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: detect-private-key
   - repo: local
     hooks:
       - id: shellcheck
@@ -13,7 +15,7 @@ repos:
         entry: shellcheck
         language: system
         files: \.(sh|bash)$
-        types: [file]
+        types: [ file ]
         alias: shck
         args: [ '-x', '-P', 'SCRIPTDIR', '-e', 'SC2034' ]
       - id: shfmt
@@ -21,5 +23,10 @@ repos:
         entry: shfmt
         language: system
         files: \.(sh|bash)$
-        types: [file]
-        args: [ '-w', '-i', '0', '-ci', '-sr', '-d', '-s']
+        types: [ file ]
+        args: [ '-w', '-i', '0', '-ci', '-sr', '-d', '-s' ]
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v2.6.2
+    hooks:
+      - id: golangci-lint
+        args: ["--fix"]
