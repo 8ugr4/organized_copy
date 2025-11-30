@@ -10,6 +10,7 @@ type Rule struct {
 	Separate     []string `yaml:"separate"`
 	Extensions   []string `yaml:"extensions,omitempty"`
 	NameContains []string `yaml:"name_contains,omitempty"`
+	Sort         string   `yaml:"sort,omitempty"` // month&year is only possible options
 }
 
 type Override struct {
