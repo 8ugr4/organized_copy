@@ -22,4 +22,4 @@ repos:
         language: system
         files: \.(sh|bash)$
         types: [file]
-        args: [ '-i', '0', '-ci', '-sr', '-d' ]
+        args: [ '-w', '-i', '0', '-ci', '-sr', '-d', '-s']
