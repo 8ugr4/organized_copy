@@ -5,10 +5,10 @@ build:
 	@go build -race -o organizer main.go
 
 test: build
-	@./organizer org-dir --src ./testDir --verbose
+	@./organizer org-dir --src ./testDir --verbose 2>/dev/null
 
 test-async: build
-	@./organizer org-dir --src ./testDir --verbose --async
+	@./organizer org-dir --src ./testDir --verbose --async 2>/dev/null
 
 cmp:
 	@./cmpDirs.sh ./testDir ./testDir_cp
