@@ -4,6 +4,9 @@ clean:
 build:
 	@go build -race -o organizer main.go
 
+go-test:
+	go test ./...
+
 test: build
 	@./organizer org-dir --src ./testDir --verbose 2>/dev/null
 
