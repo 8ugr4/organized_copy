@@ -9,7 +9,10 @@ import (
 func main() {
 	startTime := time.Now()
 
-	o := pkg.GetNewOperator()
+	o, err := pkg.GetNewOperator()
+	if err != nil {
+		panic(err)
+	}
 
 	o.Flags = pkg.GetFlags(os.Args[3:])
 	if err := pkg.ValidateDir(o.Flags.SrcPath); err != nil {

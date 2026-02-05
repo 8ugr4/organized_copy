@@ -8,17 +8,13 @@ import (
 )
 
 func Test_initExifTool(t *testing.T) {
-	o := GetNewOperator()
-	require.Nil(t, o.Storage.Exif)
-
-	err := o.initExifTool()
+	o, err := GetNewOperator()
 	require.NoError(t, err)
 	require.NotNil(t, o.Storage.Exif)
 }
 
 func Test_getFileDate(t *testing.T) {
-	o := GetNewOperator()
-	err := o.initExifTool()
+	o, err := GetNewOperator()
 	require.NoError(t, err)
 
 	// injected a date (for testing purposes) into this file with following call:

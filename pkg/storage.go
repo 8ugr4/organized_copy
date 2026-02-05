@@ -61,7 +61,7 @@ func (o *Operator) initPool(n int) {
 	})
 }
 
-func GetNewOperator() *Operator {
+func GetNewOperator() (*Operator, error) {
 	o := &Operator{
 		Storage:        *NewStorage(),
 		Flags:          Flags{},
@@ -73,7 +73,13 @@ func GetNewOperator() *Operator {
 		mu:             sync.Mutex{},
 	}
 	o.initPool(8)
-	return o
+
+	var err error
+	o.Storage.Exif, err = initExifTool()
+	if err != nil {
+		return nil, err
+	}
+	return o, nil
 }
 
 func (o *Operator) BuildStorageMaps(c *Config) {
@@ -85,9 +91,6 @@ func (o *Operator) BuildStorageMaps(c *Config) {
 		}
 		if rule.SeparateExists() {
 			o.Storage.SubDirs[rule.Category] = append(o.Storage.SubDirs[rule.Category], rule.Separate...)
-			if err := o.initExifTool(); err != nil {
-				panic(err)
-			}
 		}
 	}
 }
@@ -199,13 +202,12 @@ func uniqueDstPath(dstBasePath, dstDir, specialDir, baseName string) string {
 	return dstNewPath
 }
 
-func (o *Operator) initExifTool() error {
+func initExifTool() (*exiftool.Exiftool, error) {
 	exifTool, err := exiftool.NewExiftool()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	o.Storage.Exif = exifTool
-	return nil
+	return exifTool, nil
 }
 
 var ErrorNoCreateDate = errors.New("given file doesn't have a CreateDate field or we failed to find it")
