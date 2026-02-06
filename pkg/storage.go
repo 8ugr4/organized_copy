@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"errors"
 	"fmt"
 	"github.com/barasher/go-exiftool"
 	"io"
@@ -175,12 +176,50 @@ func (o *Operator) CreateSubdirs(dstBasePath string, rules []Rule) error {
 	return nil
 }
 
+// uniqueDstPath has two tasks.
+// original task: if there's two file with same name, to not overwriting, add an '_' and number depending on how many copies do exist.
+// task that got added during sort-image-files, which will be refactored and improved,
+// is to create YEAR, and YEAR/MONTH directories if they don't exist. Q: why is it done here currently?
+// because getFileDate function returns the format as in YEAR-MONTH and
 func uniqueDstPath(dstBasePath, dstDir, specialDir, baseName string) string {
 	ext := filepath.Ext(baseName)
 	base := strings.TrimSuffix(baseName, ext)
 	dstNewPath := path.Join(dstBasePath, dstDir, baseName)
 	if specialDir != "" {
 		dstNewPath = path.Join(dstBasePath, dstDir, specialDir, baseName)
+		// create the specialDir if it doesn't exist. this is only required for year/month sort things.
+		if _, err := os.Stat(path.Join(dstBasePath, dstDir, specialDir)); err != nil {
+			// if the directory doesn't exist, create it
+			if os.IsNotExist(err) {
+				// if specialDir has '-', then it's a "YEAR-MONTH" dir.
+				if strings.Contains(specialDir, "-") {
+					yearMonths := strings.Split(specialDir, "-")
+					year := yearMonths[0]
+					month := yearMonths[1]
+					// if the directory doesn't exist, create first year then the month
+					if _, err := os.Stat(path.Join(dstBasePath, dstDir, year)); err != nil {
+						if os.IsNotExist(err) {
+							if errCreateDirectory := os.Mkdir(path.Join(dstBasePath, dstDir, year), syscall.O_CREAT|syscall.O_EXCL|syscall.O_WRONLY); errCreateDirectory != nil {
+								panic(errCreateDirectory)
+							}
+						}
+					}
+					if _, err := os.Stat(path.Join(dstBasePath, dstDir, year, month)); err != nil {
+						if os.IsNotExist(err) {
+							if errCreateDirectory := os.Mkdir(path.Join(dstBasePath, dstDir, year, month), syscall.O_CREAT|syscall.O_EXCL|syscall.O_WRONLY); errCreateDirectory != nil {
+								panic(errCreateDirectory)
+							}
+						}
+					}
+					dstNewPath = path.Join(dstBasePath, dstDir, year, month, baseName)
+				} else {
+					// if we don't have year stuff
+					if errCreateDirectory := os.Mkdir(path.Join(dstBasePath, dstDir, specialDir), syscall.O_CREAT|syscall.O_EXCL|syscall.O_WRONLY); errCreateDirectory != nil {
+						panic(errCreateDirectory)
+					}
+				}
+			}
+		}
 	}
 
 	// TODO: improve this following idiotic logic
@@ -314,6 +353,18 @@ func (o *Operator) AsyncProcessDir(dirpath string, r bool) (int, error) {
 			defer wg.Done()
 			defer func() { <-sem }() // release slot
 			specialSubDir := o.GetSeparateSubdirs(typeDir, ext)
+			sortDir, exists := o.GetSortSubDirs(typeDir)
+			if exists {
+				sortDir, err = o.getFileDate(fp, sortDir)
+				// if the error is because we couldn't get exif date, then ignore the error
+				// otherwise return error.
+				if err != nil && !errors.Is(err, ErrorNoCreateDate) {
+					return
+				}
+				if sortDir != "" {
+					specialSubDir = path.Join(specialSubDir, sortDir)
+				}
+			}
 			if err := o.Copy(o.Flags.DstPath, typeDir, specialSubDir, fp); err != nil {
 				unprocMutex.Lock()
 				o.Storage.Unprocessed = append(o.Storage.Unprocessed, fp)
@@ -373,9 +424,21 @@ func (o *Operator) ProcessDir(dirpath string, r bool) (int, error) {
 		}
 
 		typeDir := o.AddType(ext, fp)
+		// special subDir is what you define in category as part of rules
 		specialSubDir := o.GetSeparateSubdirs(typeDir, ext)
-		//sortDir, exists := o.GetSortSubDirs(typeDir)
-
+		// get the file date depending on sortDir=year/month and pass it to o.Copy
+		sortDir, exists := o.GetSortSubDirs(typeDir)
+		if exists {
+			sortDir, err = o.getFileDate(fp, sortDir)
+			// if the error is because we couldn't get exif date, then ignore the error
+			// otherwise return error.
+			if err != nil && !errors.Is(err, ErrorNoCreateDate) {
+				return 0, err
+			}
+			if sortDir != "" {
+				specialSubDir = path.Join(specialSubDir, sortDir)
+			}
+		}
 		if err := o.Copy(o.Flags.DstPath, typeDir, specialSubDir, fp); err != nil {
 			return 0, err
 		}

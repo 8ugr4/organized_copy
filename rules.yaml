@@ -3,7 +3,7 @@ rules:
 # if the extension doesn't exist in following, there should be a bucket too.
   - category: images
     extensions: [ "jpg", "JPG", "jpeg", "png", "webp", "jfif", "HEIC", "svg", "PNG" ]
-    sort: "year"
+    sort: "month"
 # sort can only be used with setting pattern flag for the filepath pattern. see organizer --help for more information
 # you can also use sort: "month" to have dirs like 2025/Jan,2025/Feb,2019/June
 
