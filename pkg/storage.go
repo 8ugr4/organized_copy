@@ -281,6 +281,26 @@ func (o *Operator) skipcheck(fp string) bool {
 	return false
 }
 
+func (o *Operator) getSpecialSubDirNames(typeDir, ext, fp string) (string, error) {
+	// special subDir is what you define in category as part of rules
+	specialSubDir := o.GetSeparateSubdirs(typeDir, ext)
+	// get the file date depending on sortDir=year/month and pass it to o.Copy
+	sortDir, exists := o.GetSortSubDirs(typeDir)
+	var err error
+	if exists {
+		sortDir, err = o.getFileDate(fp, sortDir)
+		// if the error is because we couldn't get exif date, then ignore the error
+		// otherwise return error.
+		if err != nil && !errors.Is(err, ErrorNoCreateDate) {
+			return "", err
+		}
+		if sortDir != "" {
+			specialSubDir = path.Join(specialSubDir, sortDir)
+		}
+	}
+	return specialSubDir, nil
+}
+
 func (o *Operator) AsyncProcessDir(dirpath string, r bool) (int, error) {
 	entries, err := os.ReadDir(dirpath)
 	if err != nil {
@@ -320,21 +340,13 @@ func (o *Operator) AsyncProcessDir(dirpath string, r bool) (int, error) {
 
 		wg.Add(1)
 		sem <- struct{}{} // get slot
+		// TODO how do we handle errors in go calls, can we still just return them?
 		go func(fp, typeDir string, ext string) {
 			defer wg.Done()
 			defer func() { <-sem }() // release slot
-			specialSubDir := o.GetSeparateSubdirs(typeDir, ext)
-			sortDir, exists := o.GetSortSubDirs(typeDir)
-			if exists {
-				sortDir, err = o.getFileDate(fp, sortDir)
-				// if the error is because we couldn't get exif date, then ignore the error
-				// otherwise return error.
-				if err != nil && !errors.Is(err, ErrorNoCreateDate) {
-					return
-				}
-				if sortDir != "" {
-					specialSubDir = path.Join(specialSubDir, sortDir)
-				}
+			specialSubDir, err := o.getSpecialSubDirNames(typeDir, ext, fp)
+			if err != nil {
+				return
 			}
 			if err := o.Copy(o.Flags.DstPath, typeDir, specialSubDir, fp); err != nil {
 				unprocMutex.Lock()
@@ -395,20 +407,9 @@ func (o *Operator) ProcessDir(dirpath string, r bool) (int, error) {
 		}
 
 		typeDir := o.AddType(ext, fp)
-		// special subDir is what you define in category as part of rules
-		specialSubDir := o.GetSeparateSubdirs(typeDir, ext)
-		// get the file date depending on sortDir=year/month and pass it to o.Copy
-		sortDir, exists := o.GetSortSubDirs(typeDir)
-		if exists {
-			sortDir, err = o.getFileDate(fp, sortDir)
-			// if the error is because we couldn't get exif date, then ignore the error
-			// otherwise return error.
-			if err != nil && !errors.Is(err, ErrorNoCreateDate) {
-				return 0, err
-			}
-			if sortDir != "" {
-				specialSubDir = path.Join(specialSubDir, sortDir)
-			}
+		specialSubDir, err := o.getSpecialSubDirNames(typeDir, ext, fp)
+		if err != nil {
+			return 0, err
 		}
 		if err := o.Copy(o.Flags.DstPath, typeDir, specialSubDir, fp); err != nil {
 			return 0, err
