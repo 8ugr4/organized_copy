@@ -36,6 +36,7 @@ func NewStorage() *Storage {
 		OutDirectories: make(map[string][]string),
 		SubDirs:        make(map[string][]string),
 		Unprocessed:    make([]string, 0),
+		SortMap:        make(map[string]string),
 	}
 }
 
@@ -89,6 +90,9 @@ func (o *Operator) BuildStorageMaps(c *Config) {
 		}
 		if rule.SeparateExists() {
 			o.Storage.SubDirs[rule.Category] = append(o.Storage.SubDirs[rule.Category], rule.Separate...)
+		}
+		if rule.Sort != "" {
+			o.Storage.SortMap[rule.Category] = rule.Sort
 		}
 	}
 }
