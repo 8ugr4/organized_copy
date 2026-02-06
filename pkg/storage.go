@@ -136,21 +136,12 @@ func (o *Operator) AddType(ext, fp string) string {
 	return category
 }
 
-func check(dst string) error {
-	if _, err := os.Stat(dst); err != nil {
-		if err := os.Mkdir(dst, syscall.O_CREAT|syscall.O_EXCL|syscall.O_WRONLY); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (o *Operator) CreateSubdirs(dstBasePath string, rules []Rule) error {
 	if o.Flags.DryRun {
 		return nil
 	}
 
-	if err := check(dstBasePath); err != nil {
+	if err := createDirectory(dstBasePath); err != nil {
 		return err
 	}
 
@@ -166,13 +157,6 @@ func (o *Operator) CreateSubdirs(dstBasePath string, rules []Rule) error {
 			}
 		}
 	}
-	// TODO: drop me
-	// dirNames := []string{"images", "videos", "audios", "archives", "documents", "applications", "unknown"}
-	// for _, dirName := range dirNames {
-	//	 if err := os.Mkdir(path.Join(dstBasePath, dirName), syscall.O_CREAT|syscall.O_EXCL|syscall.O_WRONLY); err != nil {
-	//		return err
-	//	}
-	// }
 	return nil
 }
 
@@ -219,6 +203,7 @@ func (o *Operator) Copy(dstPath, dstDir, specialDir, fileAbsolutePath string) er
 	if err != nil {
 		slog.Warn("Skipping unreadable file", "path", fileAbsolutePath, "error", err)
 		// o.Storage.Unprocessed = append(o.Storage.Unprocessed, fileAbsolutePath)
+		// TODO: why is this commented out? check out later how do we deal with this.
 		return nil
 	}
 	defer func() {
