@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/barasher/go-exiftool"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -54,7 +55,8 @@ func (o *Operator) getFileDate(fp, periodType string) (string, error) { //nolint
 			}
 			switch periodType {
 			case "month":
-				return ta.Format("2006-01"), nil
+				yearmonth := strings.Split(ta.Format("2006-01"), "-")
+				return strings.Join(yearmonth, "/"), nil
 			case "year":
 				return ta.Format("2006"), nil
 			default:

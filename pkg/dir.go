@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 )
 
 func DirSize(path string) (int64, error) {
@@ -64,6 +65,19 @@ func ValidateDir(dirp string) error {
 		slog.Info("", slog.String(dirp, "is a directory"), slog.String("size", fmt.Sprint(dirSizeGb, " bytes")))
 	} else {
 		return fmt.Errorf("path is not dir")
+	}
+	return nil
+}
+
+func createDirectory(path string) error {
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			if errCreateDirectory := os.MkdirAll(path, syscall.O_CREAT|syscall.O_EXCL|syscall.O_WRONLY); errCreateDirectory != nil {
+				return errCreateDirectory
+			}
+		} else {
+			return err
+		}
 	}
 	return nil
 }
