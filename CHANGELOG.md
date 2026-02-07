@@ -1,3 +1,17 @@
+## 1.1.0 (2026-02-07)
+
+### Feat
+
+- sort files depending on their year or year/month
+
+### Refactor
+
+- consolidate same calls in async and sync
+- get rid of stupidly huge if tree
+- move exif logic to it's own file
+- get functions should return errors
+- getFileDate function now works correctly. maybe squash this into other feat func
+
 ## 1.0.0 (2026-02-05)
 
 ### Feat
