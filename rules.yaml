@@ -5,7 +5,7 @@ rules:
     extensions: [ "jpg", "JPG", "jpeg", "png", "webp", "jfif", "HEIC", "svg", "PNG" ]
     sort: "month"
 # sort can only be used with setting pattern flag for the filepath pattern. see organizer --help for more information
-# you can also use sort: "month" to have dirs like 2025/Jan,2025/Feb,2019/June
+# you can also use sort: "month" to have dirs like 2025/01, 2025/06, 2019/10
 
   - category: videos
     extensions: [ "mp4", "gif", "mpeg", "ogg" ]
