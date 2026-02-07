@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"encoding/csv"
+	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
@@ -30,8 +31,8 @@ func NewCSVLogger(path string) (*CSVLogger, error) {
 
 	// header
 	if err := w.Write([]string{"sourceFilePath", "destinationFilePath", "fileName", "status"}); err != nil {
-		f.Close()
-		return nil, err
+		err2 := f.Close()
+		return nil, fmt.Errorf("%w,%w", err, err2)
 	}
 	w.Flush()
 	return &CSVLogger{writer: w, file: f}, nil
@@ -68,7 +69,7 @@ func ResultLog(extensions int, o *Operator, startTime time.Time) {
 	slog.Info("", "total runtime", time.Since(startTime))
 	if o.CsvHandler != nil {
 		if err := o.CsvHandler.Log(time.Since(startTime).String(), "skipped file count", "total runtime", strconv.Itoa(len(o.Storage.Unprocessed))); err != nil {
-			slog.Error("Failed to log:", err)
+			slog.Error("failure-log", "error", err.Error())
 		}
 	}
 }

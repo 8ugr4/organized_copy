@@ -1,7 +1,9 @@
 package pkg
 
 import (
+	"errors"
 	"fmt"
+	"github.com/barasher/go-exiftool"
 	"io"
 	"log/slog"
 	"os"
@@ -24,6 +26,8 @@ type Storage struct {
 	OutDirectories map[string][]string // []categories[files]
 	SubDirs        map[string][]string // [subDir][]extensions
 	Unprocessed    []string
+	SortMap        map[string]string //image:year, videos:month, documents:month
+	Exif           *exiftool.Exiftool
 }
 
 func NewStorage() *Storage {
@@ -33,6 +37,7 @@ func NewStorage() *Storage {
 		OutDirectories: make(map[string][]string),
 		SubDirs:        make(map[string][]string),
 		Unprocessed:    make([]string, 0),
+		SortMap:        make(map[string]string),
 	}
 }
 
@@ -56,7 +61,7 @@ func (o *Operator) initPool(n int) {
 	})
 }
 
-func GetNewOperator() *Operator {
+func GetNewOperator() (*Operator, error) {
 	o := &Operator{
 		Storage:        *NewStorage(),
 		Flags:          Flags{},
@@ -68,7 +73,13 @@ func GetNewOperator() *Operator {
 		mu:             sync.Mutex{},
 	}
 	o.initPool(8)
-	return o
+
+	var err error
+	o.Storage.Exif, err = initExifTool()
+	if err != nil {
+		return nil, err
+	}
+	return o, nil
 }
 
 func (o *Operator) BuildStorageMaps(c *Config) {
@@ -79,9 +90,10 @@ func (o *Operator) BuildStorageMaps(c *Config) {
 			o.Storage.Extensions[extension] = rule.Category
 		}
 		if rule.SeparateExists() {
-			for _, subDir := range rule.Separate {
-				o.Storage.SubDirs[rule.Category] = append(o.Storage.SubDirs[rule.Category], subDir)
-			}
+			o.Storage.SubDirs[rule.Category] = append(o.Storage.SubDirs[rule.Category], rule.Separate...)
+		}
+		if rule.Sort != "" {
+			o.Storage.SortMap[rule.Category] = rule.Sort
 		}
 	}
 }
@@ -96,6 +108,13 @@ func (o *Operator) GetSeparateSubdirs(category, ext string) string {
 		return ""
 	}
 	return ""
+}
+
+func (o *Operator) GetSortSubDirs(category string) (string, bool) {
+	if sortType, exists := o.Storage.SortMap[category]; exists {
+		return sortType, true
+	}
+	return "", false
 }
 
 func (o *Operator) GetExtensionCategory(ext string) (string, bool) {
@@ -117,21 +136,12 @@ func (o *Operator) AddType(ext, fp string) string {
 	return category
 }
 
-func check(dst string) error {
-	if _, err := os.Stat(dst); err != nil {
-		if err := os.Mkdir(dst, syscall.O_CREAT|syscall.O_EXCL|syscall.O_WRONLY); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (o *Operator) CreateSubdirs(dstBasePath string, rules []Rule) error {
 	if o.Flags.DryRun {
 		return nil
 	}
 
-	if err := check(dstBasePath); err != nil {
+	if err := createDirectory(dstBasePath); err != nil {
 		return err
 	}
 
@@ -147,22 +157,24 @@ func (o *Operator) CreateSubdirs(dstBasePath string, rules []Rule) error {
 			}
 		}
 	}
-
-	// dirNames := []string{"images", "videos", "audios", "archives", "documents", "applications", "unknown"}
-	// for _, dirName := range dirNames {
-	//	 if err := os.Mkdir(path.Join(dstBasePath, dirName), syscall.O_CREAT|syscall.O_EXCL|syscall.O_WRONLY); err != nil {
-	//		return err
-	//	}
-	// }
 	return nil
 }
 
+// uniqueDstPath has two tasks.
+// original task: if there's two file with same name, to not overwriting, add an '_' and number depending on how many copies do exist.
+// task that got added during sort-image-files, which will be refactored and improved,
+// is to create YEAR, and YEAR/MONTH directories if they don't exist. Q: why is it done here currently?
+// because getFileDate function returns the format as in YEAR-MONTH and
 func uniqueDstPath(dstBasePath, dstDir, specialDir, baseName string) string {
 	ext := filepath.Ext(baseName)
 	base := strings.TrimSuffix(baseName, ext)
 	dstNewPath := path.Join(dstBasePath, dstDir, baseName)
 	if specialDir != "" {
 		dstNewPath = path.Join(dstBasePath, dstDir, specialDir, baseName)
+		// create the specialDir if it doesn't exist. this is only required for year/month sort things.
+		if err := createDirectory(path.Join(dstBasePath, dstDir, specialDir)); err != nil {
+			panic(err)
+		}
 	}
 
 	// TODO: improve this following idiotic logic
@@ -191,6 +203,7 @@ func (o *Operator) Copy(dstPath, dstDir, specialDir, fileAbsolutePath string) er
 	if err != nil {
 		slog.Warn("Skipping unreadable file", "path", fileAbsolutePath, "error", err)
 		// o.Storage.Unprocessed = append(o.Storage.Unprocessed, fileAbsolutePath)
+		// TODO: why is this commented out? check out later how do we deal with this.
 		return nil
 	}
 	defer func() {
@@ -224,13 +237,14 @@ func (o *Operator) Copy(dstPath, dstDir, specialDir, fileAbsolutePath string) er
 
 	if o.CsvHandler != nil {
 		if err := o.CsvHandler.Log("SUCCESS", srcFile.Name(), fileName, destinationFile.Name()); err != nil {
-			slog.Error("Failed to log:", err)
+			slog.Error("failure-log", "error", err.Error())
 		}
 	}
 
 	return nil
 }
 
+// skipcheck logs skipped files and adds them to unprocessed slice.
 func (o *Operator) skipcheck(fp string) bool {
 	info, err := os.Stat(fp)
 	if err != nil {
@@ -250,6 +264,26 @@ func (o *Operator) skipcheck(fp string) bool {
 		return true
 	}
 	return false
+}
+
+func (o *Operator) getSpecialSubDirNames(typeDir, ext, fp string) (string, error) {
+	// special subDir is what you define in category as part of rules
+	specialSubDir := o.GetSeparateSubdirs(typeDir, ext)
+	// get the file date depending on sortDir=year/month and pass it to o.Copy
+	sortDir, exists := o.GetSortSubDirs(typeDir)
+	var err error
+	if exists {
+		sortDir, err = o.getFileDate(fp, sortDir)
+		// if the error is because we couldn't get exif date, then ignore the error
+		// otherwise return error.
+		if err != nil && !errors.Is(err, ErrorNoCreateDate) {
+			return "", err
+		}
+		if sortDir != "" {
+			specialSubDir = path.Join(specialSubDir, sortDir)
+		}
+	}
+	return specialSubDir, nil
 }
 
 func (o *Operator) AsyncProcessDir(dirpath string, r bool) (int, error) {
@@ -291,10 +325,14 @@ func (o *Operator) AsyncProcessDir(dirpath string, r bool) (int, error) {
 
 		wg.Add(1)
 		sem <- struct{}{} // get slot
+		// TODO how do we handle errors in go calls, can we still just return them?
 		go func(fp, typeDir string, ext string) {
 			defer wg.Done()
 			defer func() { <-sem }() // release slot
-			specialSubDir := o.GetSeparateSubdirs(typeDir, ext)
+			specialSubDir, err := o.getSpecialSubDirNames(typeDir, ext, fp)
+			if err != nil {
+				return
+			}
 			if err := o.Copy(o.Flags.DstPath, typeDir, specialSubDir, fp); err != nil {
 				unprocMutex.Lock()
 				o.Storage.Unprocessed = append(o.Storage.Unprocessed, fp)
@@ -354,13 +392,16 @@ func (o *Operator) ProcessDir(dirpath string, r bool) (int, error) {
 		}
 
 		typeDir := o.AddType(ext, fp)
-		specialSubDir := o.GetSeparateSubdirs(typeDir, ext)
+		specialSubDir, err := o.getSpecialSubDirNames(typeDir, ext, fp)
+		if err != nil {
+			return 0, err
+		}
 		if err := o.Copy(o.Flags.DstPath, typeDir, specialSubDir, fp); err != nil {
 			return 0, err
 		}
 		processed++
 		percentage := float64(processed) / float64(total) * 100
-		if processed%max(1, total/20) == 0 && r == false {
+		if processed%max(1, total/20) == 0 && !r {
 			slog.Info("progress", "completed", fmt.Sprintf("%.1f%%", percentage))
 		}
 		extensions = append(extensions, ext)
@@ -379,50 +420,3 @@ func (o *Operator) Operate() (int, error) {
 	}
 	return 0, nil
 }
-
-/*
-
-func (o *Operator) AddType(ext, fp string) string {
-	s := &o.Storage
-	switch ext {
-	// IMAGES
-	case "jpg", "JPG", "jpeg", "png", "webp", "jfif", "HEIC", "svg", "PNG":
-		s.images = append(s.images, fp)
-		return images
-
-	// VIDEOS
-	case "mp4", "gif", "mpeg", "ogg":
-		s.videos = append(s.videos, fp)
-		return videos
-
-	// AUDIOS
-	case "wav", "asd", "mp3", "aac", "aif":
-		s.audios = append(s.audios, fp)
-		return audios
-
-	// DOCUMENTS
-	case "pdf", "PDF", "doc", "docx", "dotx",
-		"txt", "epub", "csv", "pptx", "accdb",
-		"xlsx", "bib", "sql", "json", "rtf",
-		"tex", "ini", "odt":
-		s.documents = append(s.documents, fp)
-		return documents
-
-	// ARCHIVES
-	case "zip", "rar", "pcapng", "msix", "iso":
-		s.archives = append(s.archives, fp)
-		return archives
-
-		// APPLICATIONS
-	case "ipynb", "m", "exe", "py", "whl", "pcap", "msi":
-		s.applications = append(s.applications, fp)
-		return applications
-	// UNKNOWN
-	case "unknown", "rdf", "mdl", "sig", "hbs", "dat", "pkpass", "tmp", " ":
-		s.unknown = append(s.unknown, fp)
-		return unknown
-	default:
-		return unknown
-	}
-}
-*/

@@ -1,25 +1,54 @@
 repos:
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v2.0.0
-    hooks:
-      -   id: check-merge-conflict
-      -   id: trailing-whitespace
-      -   id: end-of-file-fixer
-      -   id: check-yaml
-  - repo: local
-    hooks:
-      - id: shellcheck
-        name: Run static analysis (shellcheck)
-        entry: shellcheck
-        language: system
-        files: \.(sh|bash)$
-        types: [file]
-        alias: shck
-        args: [ '-x', '-P', 'SCRIPTDIR', '-e', 'SC2034' ]
-      - id: shfmt
-        name: Run lint check (shfmt -d)
-        entry: shfmt
-        language: system
-        files: \.(sh|bash)$
-        types: [file]
-        args: [ '-i', '0', '-ci', '-sr', '-d' ]
+- hooks:
+  - id: check-merge-conflict
+  - id: trailing-whitespace
+  - id: end-of-file-fixer
+  - id: check-yaml
+  - id: check-added-large-files
+  - id: detect-private-key
+  repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v6.0.0
+- hooks:
+  - alias: shck
+    args:
+    - -x
+    - -P
+    - SCRIPTDIR
+    - -e
+    - SC2034
+    entry: shellcheck
+    files: \.(sh|bash)$
+    id: shellcheck
+    language: system
+    name: Run static analysis (shellcheck)
+    types:
+    - file
+  - args:
+    - -w
+    - -i
+    - '0'
+    - -ci
+    - -sr
+    - -d
+    - -s
+    entry: shfmt
+    files: \.(sh|bash)$
+    id: shfmt
+    language: system
+    name: Run lint check (shfmt -d)
+    types:
+    - file
+  repo: local
+- hooks:
+  - args:
+    - --fix
+    id: golangci-lint
+  repo: https://github.com/golangci/golangci-lint
+  rev: v2.6.2
+- hooks:
+  - id: commitizen
+  - id: commitizen-branch
+    stages:
+    - pre-push
+  repo: https://github.com/commitizen-tools/commitizen
+  rev: v4.13.5

@@ -3,6 +3,9 @@ rules:
 # if the extension doesn't exist in following, there should be a bucket too.
   - category: images
     extensions: [ "jpg", "JPG", "jpeg", "png", "webp", "jfif", "HEIC", "svg", "PNG" ]
+    sort: "month"
+# sort can only be used with setting pattern flag for the filepath pattern. see organizer --help for more information
+# you can also use sort: "month" to have dirs like 2025/01, 2025/06, 2019/10
 
   - category: videos
     extensions: [ "mp4", "gif", "mpeg", "ogg" ]
@@ -36,3 +39,5 @@ rules:
 
 override:
   priority_order :  ["special","special2"]
+
+# TODO: use jsonschema to validate config.

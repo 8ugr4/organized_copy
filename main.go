@@ -2,14 +2,19 @@ package main
 
 import (
 	"backup_categorizer/pkg"
+	"os"
 	"time"
 )
 
 func main() {
 	startTime := time.Now()
-	o := pkg.GetNewOperator()
 
-	o.Flags = pkg.GetFlags()
+	o, err := pkg.GetNewOperator()
+	if err != nil {
+		panic(err)
+	}
+
+	o.Flags = pkg.GetFlags(os.Args[3:])
 	if err := pkg.ValidateDir(o.Flags.SrcPath); err != nil {
 		panic(err)
 	}
@@ -18,7 +23,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
 	if err := o.CreateSubdirs(o.Flags.DstPath, rules.Rules); err != nil {
 		panic(err)
 	}
@@ -35,4 +39,14 @@ func main() {
 	}
 
 	pkg.ResultLog(extensions, o, startTime)
+	if o.Storage.Exif != nil {
+		defer func() {
+			err := o.Storage.Exif.Close()
+			if err != nil {
+				panic(err)
+			}
+		}()
+	}
 }
+
+// TODO: check priv&public funcs

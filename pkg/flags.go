@@ -16,9 +16,10 @@ type Flags struct {
 	DryRun   bool
 	Async    bool
 	Verbose  bool
+	Pattern  string
 }
 
-func GetFlags() Flags {
+func GetFlags(args []string) Flags {
 	srcPath := flag.String("src", "./testDir", "Source directory path")
 	dstPath := flag.String("dst", "", "Destination directory path")
 	rulePath := flag.String("rules", "./rules.yaml", "output category rules")
@@ -26,6 +27,7 @@ func GetFlags() Flags {
 	dryRun := flag.Bool("dry-run", false, "Dry-run option")
 	async := flag.Bool("async", false, "Faster async option, uses goroutines")
 	verbose := flag.Bool("verbose", false, "Set to debug mode")
+	pattern := flag.String("pattern", "", "image file pattern, e.g.: IMG_YEARMONTHDAY_HOURMINUTESECOND.ext, IMG_20220830_195427.jpg")
 	// TODO: implement me: validate := flag.Bool("validate", false, "Enable SHA256 validation after copy operation")
 
 	flag.Parse()
@@ -49,7 +51,6 @@ func GetFlags() Flags {
 		slog.Warn("path for rules file is empty, going to use default settings from 'rules.yaml'")
 		*rulePath = "./rules.yaml"
 	}
-
 	return Flags{
 		SrcPath:  *srcPath,
 		DstPath:  *dstPath,
@@ -58,5 +59,14 @@ func GetFlags() Flags {
 		Async:    *async,
 		Verbose:  *verbose,
 		RulePath: *rulePath,
+		Pattern:  *pattern,
 	}
+	//TODO: separate img-sort and org-dir subcommand flag functions or structs. (find a better design method)
+}
+
+func GetSubCommand() string {
+	if len(os.Args) < 2 {
+		fmt.Println("expected 'org-dir' or 'sort-img' subcommand")
+	}
+	return os.Args[1]
 }
